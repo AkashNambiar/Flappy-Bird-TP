@@ -1,6 +1,7 @@
 
 from tkinter import *
 import random
+import time
 
 class Animal(object):
 	def __init__(self, data, size, border):
@@ -19,7 +20,8 @@ class Animal(object):
 	def jumpAction(self):
 		pass
 
-	def collisionCheck(self, obstacle):
+	def obstacleCollision(self, obstacle, data):
+		if data.invisibleObstacle: return
 		top = obstacle.top
 		bottom = obstacle.bottom
 		halfSizeObstacle = (top.x2 - top.x1)/2
@@ -27,6 +29,11 @@ class Animal(object):
 		collidedTop = abs(obstacleCX - self.x) < self.size//2 + halfSizeObstacle and top.y2 > self.y - self.size//2
 		collidedBottom = abs(obstacleCX - self.x) < self.size//2 + halfSizeObstacle and bottom.y1 < self.y - self.size//2
 		return collidedTop or collidedBottom
+
+	def itemCollision(self, item):
+		dx = self.x - item.x
+		dy = self.y - item.y
+		return (dx**2 + dy**2)**0.5 < self.size + item.size
 
 	def onTimerFired(self, data):
 		self.y += self.speed
@@ -48,15 +55,19 @@ class Obstacle(object):
 		self.bottom = ObstaclePart(x ,y + endHeight + gap, obstacleWidth, data.height)
 
 	def draw(self, canvas, data):
-		self.top.draw(canvas, data, data.topObstacle, SE)
-		self.bottom.draw(canvas, data, data.bottomObstacle, NW)
+		obstacleT, obstacleB = data.topObstacle, data.bottomObstacle
+		if data.invisibleObstacle:
+			obstacleT, obstacleB = data.topObstacleClear, data.bottomObstacleClear
+
+		self.top.draw(canvas, data, obstacleT, SE)
+		self.bottom.draw(canvas, data, obstacleB, NW)
 
 	def onTimerFired(self, data):
-		self.top.onTimerFired(data)
-		self.bottom.onTimerFired(data)
+		self.top.onTimerFired(data, self)
+		self.bottom.onTimerFired(data, self)
 		if self.top.x2 < 0: 
 			return "Off Screen"
-		if data.animal.collisionCheck(self):
+		if data.animal.obstacleCollision(self, data):
 			return "Bird Hit"
 
 class ObstaclePart(object):
@@ -70,13 +81,32 @@ class ObstaclePart(object):
 		canvas.create_rectangle(self.x1 , self.y1, self.x2, self.y2, width = 0)
 		x, y = self.x2, self.y2
 		if anchor == NW: x, y = self.x1, self.y1
+		
 		canvas.create_image(x, y, anchor = anchor, image = obstacleType)
 
+	def onTimerFired(self, data, entireObstacle):
+		if data.gameOver: data.itemMove = 0
+		self.x1 -= data.itemMove
+		self.x2 -= data.itemMove
+
+		index = data.obstacles.index(entireObstacle)
+		if data.animal.x > self.x1 and data.obstaclePass[index] == False:
+			data.score += 1
+			data.obstaclePass[index] = True
+
+class GameItem(object):
+	def __init__(self, x, y, size):
+		self.x = x
+		self.y = y
+		self.size = size
+
+	def draw(self, canvas, data):
+		canvas.create_image(self.x, self.y, anchor = CENTER, image = data.coin)
+
 	def onTimerFired(self, data):
-		dx = 5
-		if data.gameOver: dx = 0
-		self.x1 -= dx
-		self.x2 -= dx
+		self.x -= data.itemMove
+		if data.animal.itemCollision(self):
+			return "Collected"
 
 def init(data):
 	animalImageFile = "/Users/Akash/Documents/CMU Summer/15-112/Final Project/Images/bunny1.gif"
@@ -87,6 +117,12 @@ def init(data):
 
 	bottomObstacleFile = "/Users/Akash/Documents/CMU Summer/15-112/Final Project/Images/obstaclebottom.gif"
 	data.bottomObstacle = PhotoImage(file = bottomObstacleFile)
+
+	topObstacleClearFile = "/Users/Akash/Documents/CMU Summer/15-112/Final Project/Images/obstacletopClear.gif"
+	data.topObstacleClear = PhotoImage(file = topObstacleClearFile)
+
+	bottomObstacleClearFile = "/Users/Akash/Documents/CMU Summer/15-112/Final Project/Images/obstaclebottomClear.gif"
+	data.bottomObstacleClear = PhotoImage(file = bottomObstacleClearFile)
 
 	backgroundFile = "/Users/Akash/Documents/CMU Summer/15-112/Final Project/Images/background.gif"
 	data.background = PhotoImage(file = backgroundFile)
@@ -100,14 +136,33 @@ def init(data):
 	restartFile = "/Users/Akash/Documents/CMU Summer/15-112/Final Project/Images/restart.gif"
 	data.restart = PhotoImage(file = restartFile)
 
+	coinFile = "/Users/Akash/Documents/CMU Summer/15-112/Final Project/Images/coin.gif"
+	data.coin = PhotoImage(file = coinFile, format="gif -index 4")
+
 	data.animal = Animal(data, 40, data.ground.height())
+
 	data.obstacles = []
 	data.obstaclesImages = []
+	data.obstaclePass = []
+
+	data.gameItems = []
+
 	data.timer = 0
-	data.timerDelay = 40
-	data.obstacleGen = data.timerDelay
-	data.gameOver = False
+	data.timerDelay = 30
+
+	data.obstacleDistance = 300
+	data.itemMove = 5
+
 	data.score = 0
+
+	data.gameOver = False
+	data.arcadeMode = True
+
+	data.invisibleObstacle = False
+	data.timeInvisbleCounter = 0
+	data.timeInvisble = 3 * (1000 / data.timerDelay)
+
+	newObstacle(data)
 
 def mousePressed(event, data):
 	pass
@@ -127,29 +182,59 @@ def timerFired(data):
 	
 	data.timer += 1
 
-	if data.timer % data.obstacleGen == 0: 
+	if data.invisibleObstacle:
+		data.timeInvisbleCounter += 1
+
+		if data.timeInvisbleCounter > data.timeInvisble:
+			print(data.t - time.time())
+			data.timeInvisbleCounter = 0
+			data.invisibleObstacle = False
+
+	if data.obstacles[len(data.obstacles) - 1].top.x1 < data.width - data.obstacleDistance:
 		newObstacle(data)
 
 	for obstacle in data.obstacles:
 		gameState = obstacle.onTimerFired(data)
 		if gameState == "Off Screen":
+			index = data.obstacles.index(obstacle)
 			data.obstacles.remove(obstacle)
+			del data.obstaclePass[index]
 			break
 		elif gameState == "Bird Hit":
 			data.gameOver = True	
 
+	for gameItem in data.gameItems:
+		if gameItem.onTimerFired(data) == "Collected":
+			data.gameItems.remove(gameItem)
+			data.invisibleObstacle = True
+			data.t = time.time()
+
 def redrawAll(canvas, data):
 	drawBackground(canvas, data)
+	
 	for obstacle in data.obstacles:
 		obstacle.draw(canvas, data)
+	
+	for gameItem in data.gameItems:
+		gameItem.draw(canvas, data)
+	
 	drawBorders(canvas, data)
+	
 	data.animal.draw(canvas, data)
+	
 	if data.gameOver:
 		drawRestart(canvas, data)
 
-def newObstacle(data, dx = 50):
+def newObstacle(data):
 	if data.gameOver: return
 	data.obstacles.append(Obstacle(data, data.width, 0, random.randint(100, data.height - 200)))
+	data.obstaclePass.append(False)
+
+	newGameItem(data, data.width + data.obstacleDistance/2)
+
+def newGameItem(data, x):
+	if data.gameOver: return
+	data.gameItems.append(GameItem(x, random.randint(100, data.height - 100), data.coin.height()/4))
 
 def drawBorders(canvas, data, thickness = 30):
 	#canvas.create_image(0, 0, anchor = NW, image = data.groundFlipped)
@@ -164,46 +249,45 @@ def drawRestart(canvas, data):
 	canvas.create_image(data.width//2, data.height//2, anchor = CENTER, image = data.restart)
 
 def run(width=300, height=300):
-    def redrawAllWrapper(canvas, data):
-        canvas.delete(ALL)
-        canvas.create_rectangle(0, 0, data.width, data.height,
-                                fill='white', width=0)
-        redrawAll(canvas, data)
-        canvas.update()
+	def redrawAllWrapper(canvas, data):
+		canvas.delete(ALL)
+		canvas.create_rectangle(0, 0, data.width, data.height,
+								fill='white', width=0)
+		redrawAll(canvas, data)
+		canvas.update()
 
-    def mousePressedWrapper(event, canvas, data):
-        mousePressed(event, data)
-        redrawAllWrapper(canvas, data)
+	def mousePressedWrapper(event, canvas, data):
+		mousePressed(event, data)
+		redrawAllWrapper(canvas, data)
 
-    def keyPressedWrapper(event, canvas, data):
-        keyPressed(event, data)
-        redrawAllWrapper(canvas, data)
+	def keyPressedWrapper(event, canvas, data):
+		keyPressed(event, data)
+		redrawAllWrapper(canvas, data)
 
-    def timerFiredWrapper(canvas, data):
-        timerFired(data)
-        redrawAllWrapper(canvas, data)
-        # pause, then call timerFired again
-        canvas.after(data.timerDelay, timerFiredWrapper, canvas, data)
-    # Set up data and call init
-    class Struct(object): pass
-    data = Struct()
-    data.width = width
-    data.height = height
-    data.timerDelay = 100 # milliseconds
-    root = Tk()
-    init(data)
-    # create the root and the canvas
-    canvas = Canvas(root, width=data.width, height=data.height)
-    canvas.configure(bd=0, highlightthickness=0)
-    canvas.pack()
-    # set up events
-    root.bind("<Button-1>", lambda event:
-                            mousePressedWrapper(event, canvas, data))
-    root.bind("<Key>", lambda event:
-                            keyPressedWrapper(event, canvas, data))
-    timerFiredWrapper(canvas, data)
-    # and launch the app
-    root.mainloop()  # blocks until window is closed
-    print("bye!")
+	def timerFiredWrapper(canvas, data):
+		timerFired(data)
+		redrawAllWrapper(canvas, data)
+		# pause, then call timerFired again
+		canvas.after(data.timerDelay, timerFiredWrapper, canvas, data)
+	# Set up data and call init
+	class Struct(object): pass
+	data = Struct()
+	data.width = width
+	data.height = height
+	data.timerDelay = 100 # milliseconds
+	root = Tk()
+	init(data)
+	# create the root and the canvas
+	canvas = Canvas(root, width=data.width, height=data.height)
+	canvas.configure(bd=0, highlightthickness=0)
+	canvas.pack()
+	# set up events
+	root.bind("<Button-1>", lambda event:
+							mousePressedWrapper(event, canvas, data))
+	root.bind("<Key>", lambda event:
+							keyPressedWrapper(event, canvas, data))
+	timerFiredWrapper(canvas, data)
+	# and launch the app
+	root.mainloop()  # blocks until window is closed
 
 run(600, 600)
