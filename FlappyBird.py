@@ -2,17 +2,22 @@
 from tkinter import *
 import random
 
-class Bird(object):
-	def __init__(self, data, size):
+class Animal(object):
+	def __init__(self, data, size, border):
 		self.x = data.width//5
 		self.y = data.height//2
 		self.size = size
-		self.speed = 10
+		self.speed = 5
 		self.goingDown = True
+		self.border = border
 
-	def jump(self, dy = 50):
+	def jump(self, data, dy = 50):
+		if data.gameOver: return
 		self.y -= dy
-		self.speed = 10
+		self.speed = 5
+
+	def jumpAction(self):
+		pass
 
 	def collisionCheck(self, obstacle):
 		top = obstacle.top
@@ -25,29 +30,33 @@ class Bird(object):
 
 	def onTimerFired(self, data):
 		self.y += self.speed
-		self.speed = self.speed**1.05
-		if self.y > data.height - self.size//2: self.y = data.height - self.size//2
-		if self.y < self.size//2: self.y = self.size//2
+		self.speed = self.speed**1.03
+		if self.y > data.height - self.size//2 - self.border: 
+			self.y = data.height - self.size//2 -self.border
+			self.speed = 5
+		if self.y < self.size//2 + self.border: 
+			self.y = self.size//2 + self.border
 
-	def draw(self, canvas):
+	def draw(self, canvas, data):
 		x, y, size = self.x, self.y, self.size
-		canvas.create_oval(x - size//2, y - size//2, x + size//2, y + size//2)
+		canvas.create_oval(x - size//2, y - size//2, x + size//2, y + size//2, width = 0)
+		canvas.create_image(x, y, anchor = CENTER, image = data.animalImage)
 
 class Obstacle(object):
 	def __init__(self, data, x, y, endHeight, gap = 150, obstacleWidth = 25):
 		self.top = ObstaclePart(x ,y, obstacleWidth, endHeight)
 		self.bottom = ObstaclePart(x ,y + endHeight + gap, obstacleWidth, data.height)
 
-	def draw(self, canvas):
-		self.top.draw(canvas)
-		self.bottom.draw(canvas)
+	def draw(self, canvas, data):
+		self.top.draw(canvas, data, data.topObstacle, SE)
+		self.bottom.draw(canvas, data, data.bottomObstacle, NW)
 
 	def onTimerFired(self, data):
 		self.top.onTimerFired(data)
 		self.bottom.onTimerFired(data)
 		if self.top.x2 < 0: 
 			return "Off Screen"
-		if data.bird.collisionCheck(self):
+		if data.animal.collisionCheck(self):
 			return "Bird Hit"
 
 class ObstaclePart(object):
@@ -57,20 +66,48 @@ class ObstaclePart(object):
 		self.x2 = x + obstacleWidth
 		self.y2 = y + obstacleHeight
 
-	def draw(self, canvas):
-		canvas.create_rectangle(self.x1 , self.y1, self.x2, self.y2, fill = "black")
+	def draw(self, canvas, data, obstacleType, anchor):
+		canvas.create_rectangle(self.x1 , self.y1, self.x2, self.y2, width = 0)
+		x, y = self.x2, self.y2
+		if anchor == NW: x, y = self.x1, self.y1
+		canvas.create_image(x, y, anchor = anchor, image = obstacleType)
 
 	def onTimerFired(self, data):
-		self.x1 -= 5
-		self.x2 -= 5
+		dx = 5
+		if data.gameOver: dx = 0
+		self.x1 -= dx
+		self.x2 -= dx
 
 def init(data):
-	data.bird = Bird(data, 40)
+	animalImageFile = "/Users/Akash/Documents/CMU Summer/15-112/Final Project/Images/bunny1.gif"
+	data.animalImage = PhotoImage(file = animalImageFile)
+
+	topObstacleFile = "/Users/Akash/Documents/CMU Summer/15-112/Final Project/Images/obstacletop.gif"
+	data.topObstacle = PhotoImage(file = topObstacleFile)
+
+	bottomObstacleFile = "/Users/Akash/Documents/CMU Summer/15-112/Final Project/Images/obstaclebottom.gif"
+	data.bottomObstacle = PhotoImage(file = bottomObstacleFile)
+
+	backgroundFile = "/Users/Akash/Documents/CMU Summer/15-112/Final Project/Images/background.gif"
+	data.background = PhotoImage(file = backgroundFile)
+
+	groundFile = "/Users/Akash/Documents/CMU Summer/15-112/Final Project/Images/ground.gif"
+	data.ground = PhotoImage(file = groundFile)
+
+	groundFlippedFile = "/Users/Akash/Documents/CMU Summer/15-112/Final Project/Images/groundFlip.gif"
+	data.groundFlipped = PhotoImage(file = groundFlippedFile)
+
+	restartFile = "/Users/Akash/Documents/CMU Summer/15-112/Final Project/Images/restart.gif"
+	data.restart = PhotoImage(file = restartFile)
+
+	data.animal = Animal(data, 40, data.ground.height())
 	data.obstacles = []
+	data.obstaclesImages = []
 	data.timer = 0
 	data.timerDelay = 40
 	data.obstacleGen = data.timerDelay
 	data.gameOver = False
+	data.score = 0
 
 def mousePressed(event, data):
 	pass
@@ -78,13 +115,21 @@ def mousePressed(event, data):
 def keyPressed(event, data):
 	key = event.keysym
 	if key == "Up":
-		data.bird.jump()
+		data.animal.jump(data)
+	elif key == "r":
+		init(data)
 
 def timerFired(data):
-	if data.gameOver: return
+	if data.gameOver: 
+		data.animal.onTimerFired(data)
+	else:
+		data.animal.onTimerFired(data)
+	
 	data.timer += 1
+
 	if data.timer % data.obstacleGen == 0: 
 		newObstacle(data)
+
 	for obstacle in data.obstacles:
 		gameState = obstacle.onTimerFired(data)
 		if gameState == "Off Screen":
@@ -92,20 +137,31 @@ def timerFired(data):
 			break
 		elif gameState == "Bird Hit":
 			data.gameOver = True	
-	data.bird.onTimerFired(data)
 
 def redrawAll(canvas, data):
+	drawBackground(canvas, data)
 	for obstacle in data.obstacles:
-		obstacle.draw(canvas)
-	data.bird.draw(canvas)
+		obstacle.draw(canvas, data)
 	drawBorders(canvas, data)
+	data.animal.draw(canvas, data)
+	if data.gameOver:
+		drawRestart(canvas, data)
 
-def newObstacle(data):
-	data.obstacles.append(Obstacle(data, data.width, 0, random.randint(100, 200)))
+def newObstacle(data, dx = 50):
+	if data.gameOver: return
+	data.obstacles.append(Obstacle(data, data.width, 0, random.randint(100, data.height - 200)))
 
 def drawBorders(canvas, data, thickness = 30):
-	canvas.create_rectangle(0, 0, data.width, thickness, fill = "black")
-	canvas.create_rectangle(0, data.height - thickness, data.width, data.height, fill = "black")
+	#canvas.create_image(0, 0, anchor = NW, image = data.groundFlipped)
+	canvas.create_image(0, data.height - thickness, anchor = NW, image = data.ground)
+	#canvas.create_rectangle(0, 0, data.width, thickness, width = 0)
+	canvas.create_rectangle(0, data.height - thickness, data.width, data.height, width = 0)
+
+def drawBackground(canvas, data):
+	canvas.create_image(0, 0, anchor = NW, image = data.background)
+
+def drawRestart(canvas, data):
+	canvas.create_image(data.width//2, data.height//2, anchor = CENTER, image = data.restart)
 
 def run(width=300, height=300):
     def redrawAllWrapper(canvas, data):
