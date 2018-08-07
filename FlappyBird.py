@@ -11,14 +11,28 @@ class Animal(object):
 		self.speed = 5
 		self.goingDown = True
 		self.border = border
+		self.smartJump = False
+		self.jumpDistance = 50
 
-	def jump(self, data, dy = 50):
+		self.velocity = []
+		for i in range(15, 0, -2):
+			self.velocity.append(-i)
+		self.velocityIndex = 0
+		self.jumping = False
+
+	def jump(self, data):
 		if data.gameOver: return
-		self.y -= dy
+		self.jumping = True
+		self.velocityIndex = 0
 		self.speed = 5
 
 	def jumpAction(self):
-		pass
+		if self.jumping:
+			self.y += self.velocity[self.velocityIndex]
+			self.velocityIndex += 1
+			if self.velocityIndex >= len(self.velocity):
+				self.jumping = False
+				self.velocityIndex = 0
 
 	def obstacleCollision(self, obstacle, data):
 		if data.invisibleObstacle: return
@@ -35,7 +49,21 @@ class Animal(object):
 		dy = self.y - item.y
 		return (dx**2 + dy**2)**0.5 < self.size + item.size
 
+	def smartJumpAction(self, data):
+		for obstacle in data.obstacles:
+			if obstacle.passed == False:
+				self.y = obstacle.getCenterY()
+				break
+		#nextObstacle = 
+		#distanceToCenter = abs(nextObstacle.getCenter() - self.y)
+		
+		#self.smartJumpAction(data.obstacles[1])
+
 	def onTimerFired(self, data):
+		if data.animal.smartJump: 
+			self.smartJumpAction(data)
+			return
+		self.jumpAction()
 		self.y += self.speed
 		self.speed = self.speed**1.03
 		if self.y > data.height - self.size//2 - self.border: 
@@ -53,6 +81,10 @@ class Obstacle(object):
 	def __init__(self, data, x, y, endHeight, gap = 150, obstacleWidth = 25):
 		self.top = ObstaclePart(x ,y, obstacleWidth, endHeight)
 		self.bottom = ObstaclePart(x ,y + endHeight + gap, obstacleWidth, data.height)
+		self.passed = False
+
+	def __repr__(self):
+		return "%s" % self.passed
 
 	def draw(self, canvas, data):
 		obstacleT, obstacleB = data.topObstacle, data.bottomObstacle
@@ -62,9 +94,20 @@ class Obstacle(object):
 		self.top.draw(canvas, data, obstacleT, SE)
 		self.bottom.draw(canvas, data, obstacleB, NW)
 
+	def getCenterX(self):
+		return (self.top.x1 + self.top.x2)/2
+
+	def getCenterY(self):
+		return (self.top.y2 + self.bottom.y1)/2
+
 	def onTimerFired(self, data):
 		self.top.onTimerFired(data, self)
 		self.bottom.onTimerFired(data, self)
+
+		if data.animal.x > self.getCenterX() + data.topObstacle.width() and self.passed == False:
+			data.score += 1
+			self.passed = True
+
 		if self.top.x2 < 0: 
 			return "Off Screen"
 		if data.animal.obstacleCollision(self, data):
@@ -77,6 +120,9 @@ class ObstaclePart(object):
 		self.x2 = x + obstacleWidth
 		self.y2 = y + obstacleHeight
 
+	def getCenterX(self):
+		return (self.x2 + self.x1)/2
+
 	def draw(self, canvas, data, obstacleType, anchor):
 		canvas.create_rectangle(self.x1 , self.y1, self.x2, self.y2, width = 0)
 		x, y = self.x2, self.y2
@@ -88,11 +134,6 @@ class ObstaclePart(object):
 		if data.gameOver: data.itemMove = 0
 		self.x1 -= data.itemMove
 		self.x2 -= data.itemMove
-
-		index = data.obstacles.index(entireObstacle)
-		if data.animal.x > self.x1 and data.obstaclePass[index] == False:
-			data.score += 1
-			data.obstaclePass[index] = True
 
 class GameItem(object):
 	def __init__(self, x, y, size):
@@ -143,7 +184,6 @@ def init(data):
 
 	data.obstacles = []
 	data.obstaclesImages = []
-	data.obstaclePass = []
 
 	data.gameItems = []
 
@@ -173,6 +213,8 @@ def keyPressed(event, data):
 		data.animal.jump(data)
 	elif key == "r":
 		init(data)
+	elif key == "a":
+		data.animal.smartJump = True
 
 def timerFired(data):
 	if data.gameOver: 
@@ -186,7 +228,6 @@ def timerFired(data):
 		data.timeInvisbleCounter += 1
 
 		if data.timeInvisbleCounter > data.timeInvisble:
-			print(data.t - time.time())
 			data.timeInvisbleCounter = 0
 			data.invisibleObstacle = False
 
@@ -198,7 +239,6 @@ def timerFired(data):
 		if gameState == "Off Screen":
 			index = data.obstacles.index(obstacle)
 			data.obstacles.remove(obstacle)
-			del data.obstaclePass[index]
 			break
 		elif gameState == "Bird Hit":
 			data.gameOver = True	
@@ -228,7 +268,6 @@ def redrawAll(canvas, data):
 def newObstacle(data):
 	if data.gameOver: return
 	data.obstacles.append(Obstacle(data, data.width, 0, random.randint(100, data.height - 200)))
-	data.obstaclePass.append(False)
 
 	newGameItem(data, data.width + data.obstacleDistance/2)
 
@@ -247,6 +286,8 @@ def drawBackground(canvas, data):
 
 def drawRestart(canvas, data):
 	canvas.create_image(data.width//2, data.height//2, anchor = CENTER, image = data.restart)
+
+
 
 def run(width=300, height=300):
 	def redrawAllWrapper(canvas, data):
