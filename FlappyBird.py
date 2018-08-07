@@ -1,7 +1,6 @@
 
 from tkinter import *
 import random
-import time
 
 class Animal(object):
 	def __init__(self, data, size, border):
@@ -15,7 +14,7 @@ class Animal(object):
 		self.jumpDistance = 50
 
 		self.velocity = []
-		for i in range(15, 0, -2):
+		for i in range(20, 0, -3):
 			self.velocity.append(-i)
 		self.velocityIndex = 0
 		self.jumping = False
@@ -54,10 +53,6 @@ class Animal(object):
 			if obstacle.passed == False:
 				self.y = obstacle.getCenterY()
 				break
-		#nextObstacle = 
-		#distanceToCenter = abs(nextObstacle.getCenter() - self.y)
-		
-		#self.smartJumpAction(data.obstacles[1])
 
 	def onTimerFired(self, data):
 		if data.animal.smartJump: 
@@ -75,11 +70,14 @@ class Animal(object):
 	def draw(self, canvas, data):
 		x, y, size = self.x, self.y, self.size
 		canvas.create_oval(x - size//2, y - size//2, x + size//2, y + size//2, width = 0)
-		canvas.create_image(x, y, anchor = CENTER, image = data.animalImage)
+		canvas.create_image(x, y, anchor = CENTER, image = data.animalImages[data.animalImageIndex])
+		data.animalImageIndex += 1
+		if data.animalImageIndex >= len(data.animalImages):
+			data.animalImageIndex = 0
 
 class Obstacle(object):
 	def __init__(self, data, x, y, endHeight, gap = 150, obstacleWidth = 25):
-		self.top = ObstaclePart(x ,y, obstacleWidth, endHeight)
+		self.top = ObstaclePart(x, y, obstacleWidth, endHeight)
 		self.bottom = ObstaclePart(x ,y + endHeight + gap, obstacleWidth, data.height)
 		self.passed = False
 
@@ -101,8 +99,8 @@ class Obstacle(object):
 		return (self.top.y2 + self.bottom.y1)/2
 
 	def onTimerFired(self, data):
-		self.top.onTimerFired(data, self)
-		self.bottom.onTimerFired(data, self)
+		self.top.onTimerFired(data)
+		self.bottom.onTimerFired(data)
 
 		if data.animal.x > self.getCenterX() + data.topObstacle.width() and self.passed == False:
 			data.score += 1
@@ -123,17 +121,51 @@ class ObstaclePart(object):
 	def getCenterX(self):
 		return (self.x2 + self.x1)/2
 
+	def move(self, data, x, y):
+		if data.gameOver: x = 0
+		self.x1 -= x
+		self.x2 -= x
+		self.y1 -= y
+		self.y2 -= y
+
 	def draw(self, canvas, data, obstacleType, anchor):
 		canvas.create_rectangle(self.x1 , self.y1, self.x2, self.y2, width = 0)
 		x, y = self.x2, self.y2
 		if anchor == NW: x, y = self.x1, self.y1
-		
 		canvas.create_image(x, y, anchor = anchor, image = obstacleType)
 
-	def onTimerFired(self, data, entireObstacle):
-		if data.gameOver: data.itemMove = 0
-		self.x1 -= data.itemMove
-		self.x2 -= data.itemMove
+	def onTimerFired(self, data):
+		self.move(data, data.itemMove, 0)
+
+class MovingObstacle(Obstacle):
+	def __init__(self, data, x, y, startingEndHeight, moveSpeed):
+		super().__init__(data, x, y, startingEndHeight)
+		self.moveSpeed = moveSpeed
+
+	def move(self, data):
+		self.top.move(data, data.itemMove, self.moveSpeed)
+		self.bottom.move(data, data.itemMove, self.moveSpeed)
+		if 50 > self.top.y2 or self.bottom.y1 > data.height - 50:
+			self.moveSpeed = - self.moveSpeed
+
+	def onTimerFired(self, data):
+		self.move(data)
+
+class Border(object):
+	def __init__(self, x, y, image):
+		self.x = x
+		self.y = y
+		self.image = image
+
+	def move(self, data, dx = 0, dy = 0):
+		if data.gameOver: 
+			dx, dy = 0, 0
+		self.x -= dx
+		self.y -= dy
+
+	def draw(self, canvas, data):
+		canvas.create_image(self.x, self.y, anchor = NW, image = data.ground)
+		canvas.create_rectangle(self.x, self.y, self.x + self.image.width(), self.y + self.image.height(), width = 0)
 
 class GameItem(object):
 	def __init__(self, x, y, size):
@@ -145,6 +177,7 @@ class GameItem(object):
 		canvas.create_image(self.x, self.y, anchor = CENTER, image = data.coin)
 
 	def onTimerFired(self, data):
+		if data.gameOver: self.x += data.itemMove
 		self.x -= data.itemMove
 		if data.animal.itemCollision(self):
 			return "Collected"
@@ -152,6 +185,11 @@ class GameItem(object):
 def init(data):
 	animalImageFile = "/Users/Akash/Documents/CMU Summer/15-112/Final Project/Images/bunny1.gif"
 	data.animalImage = PhotoImage(file = animalImageFile)
+
+	animalImageFile2 = "/Users/Akash/Documents/CMU Summer/15-112/Final Project/Images/bunny2.gif"
+	data.animalImage2 = PhotoImage(file = animalImageFile2)
+
+	data.animalImages = [data.animalImage]
 
 	topObstacleFile = "/Users/Akash/Documents/CMU Summer/15-112/Final Project/Images/obstacletop.gif"
 	data.topObstacle = PhotoImage(file = topObstacleFile)
@@ -187,6 +225,8 @@ def init(data):
 
 	data.gameItems = []
 
+	data.borders = []
+
 	data.timer = 0
 	data.timerDelay = 30
 
@@ -202,7 +242,12 @@ def init(data):
 	data.timeInvisbleCounter = 0
 	data.timeInvisble = 3 * (1000 / data.timerDelay)
 
-	newObstacle(data)
+	data.animalImageIndex = 0
+
+	#newObstacle(data)
+	data.obstacles.append(MovingObstacle(data, data.width, 0, random.randint(100, data.height - 200), -5))
+	newBorder(data, 0)
+	newBorder(data, data.width)
 
 def mousePressed(event, data):
 	pass
@@ -214,7 +259,7 @@ def keyPressed(event, data):
 	elif key == "r":
 		init(data)
 	elif key == "a":
-		data.animal.smartJump = True
+		data.animal.smartJump = not data.animal.smartJump
 
 def timerFired(data):
 	if data.gameOver: 
@@ -247,7 +292,16 @@ def timerFired(data):
 		if gameItem.onTimerFired(data) == "Collected":
 			data.gameItems.remove(gameItem)
 			data.invisibleObstacle = True
-			data.t = time.time()
+
+	for border in data.borders:
+		border.move(data, data.itemMove)
+		if border.x + border.image.width() <= 0:
+			data.borders.remove(border)
+			break
+
+	lastBorder = data.borders[len(data.borders) - 1]
+	if lastBorder.x + lastBorder.image.width() <= data.width:
+		newBorder(data, data.width)
 
 def redrawAll(canvas, data):
 	drawBackground(canvas, data)
@@ -257,8 +311,9 @@ def redrawAll(canvas, data):
 	
 	for gameItem in data.gameItems:
 		gameItem.draw(canvas, data)
-	
-	drawBorders(canvas, data)
+
+	for border in data.borders:
+		border.draw(canvas, data)
 	
 	data.animal.draw(canvas, data)
 	
@@ -267,27 +322,23 @@ def redrawAll(canvas, data):
 
 def newObstacle(data):
 	if data.gameOver: return
-	data.obstacles.append(Obstacle(data, data.width, 0, random.randint(100, data.height - 200)))
-
+	#data.obstacles.append(Obstacle(data, data.width, 0, random.randint(100, data.height - 200)))
+	data.obstacles.append(MovingObstacle(data, data.width, 0, random.randint(100, data.height - 200), -5))
 	newGameItem(data, data.width + data.obstacleDistance/2)
+
+def newBorder(data, x):
+	if data.gameOver: return
+	data.borders.append(Border(x, data.height - data.ground.height(), data.ground))
 
 def newGameItem(data, x):
 	if data.gameOver: return
 	data.gameItems.append(GameItem(x, random.randint(100, data.height - 100), data.coin.height()/4))
-
-def drawBorders(canvas, data, thickness = 30):
-	#canvas.create_image(0, 0, anchor = NW, image = data.groundFlipped)
-	canvas.create_image(0, data.height - thickness, anchor = NW, image = data.ground)
-	#canvas.create_rectangle(0, 0, data.width, thickness, width = 0)
-	canvas.create_rectangle(0, data.height - thickness, data.width, data.height, width = 0)
 
 def drawBackground(canvas, data):
 	canvas.create_image(0, 0, anchor = NW, image = data.background)
 
 def drawRestart(canvas, data):
 	canvas.create_image(data.width//2, data.height//2, anchor = CENTER, image = data.restart)
-
-
 
 def run(width=300, height=300):
 	def redrawAllWrapper(canvas, data):
