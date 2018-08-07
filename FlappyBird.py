@@ -1,6 +1,7 @@
 
 from tkinter import *
 import random
+import time
 
 #################################################
 #################################################
@@ -49,7 +50,7 @@ class Animal(object):
 	def itemCollision(self, item):
 		dx = self.x - item.x
 		dy = self.y - item.y
-		return (dx**2 + dy**2)**0.5 < self.size + item.size
+		return (dx**2 + dy**2)**0.5 < self.size + item.image.width()
 
 	def smartJumpAction(self, data):
 		for obstacle in data.obstacles:
@@ -82,13 +83,10 @@ class Animal(object):
 #################################################
 
 class Obstacle(object):
-	def __init__(self, data, x, y, endHeight, gap = 150, obstacleWidth = 25):
+	def __init__(self, data, x, y, endHeight, gap, obstacleWidth = 25):
 		self.top = ObstaclePart(x, y, obstacleWidth, endHeight)
 		self.bottom = ObstaclePart(x ,y + endHeight + gap, obstacleWidth, data.height)
 		self.passed = False
-
-	def __repr__(self):
-		return "%s" % self.passed
 
 	def draw(self, canvas, data):
 		obstacleT, obstacleB = data.topObstacle, data.bottomObstacle
@@ -116,16 +114,18 @@ class Obstacle(object):
 			self.passed = True
 
 		if self.top.x2 < 0: 
-			return "Off Screen"
+			index = data.obstacles.index(self)
+			data.obstacles.remove(self)
 		if data.animal.obstacleCollision(self, data):
-			return "Bird Hit"
+			data.gameOver = True
+			
 
 #################################################
 #################################################
 
 class MovingObstacle(Obstacle):
-	def __init__(self, data, x, y, startingEndHeight, moveSpeed):
-		super().__init__(data, x, y, startingEndHeight)
+	def __init__(self, data, x, y, startingEndHeight, gap, moveSpeed):
+		super().__init__(data, x, y, startingEndHeight, gap)
 		self.moveSpeed = moveSpeed
 
 	def move(self, data):
@@ -186,19 +186,30 @@ class Border(object):
 #################################################
 
 class GameItem(object):
-	def __init__(self, x, y, size):
+	def __init__(self, x, y, image, itemType):
 		self.x = x
 		self.y = y
-		self.size = size
+		self.image = image
+		self.itemType = itemType
 
 	def draw(self, canvas, data):
-		canvas.create_image(self.x, self.y, anchor = CENTER, image = data.coin)
+		canvas.create_image(self.x, self.y, anchor = CENTER, image = self.image)
 
 	def onTimerFired(self, data):
 		if data.gameOver: self.x += data.itemMove
 		self.x -= data.itemMove
 		if data.animal.itemCollision(self):
-			return "Collected"
+			if self.itemType == "Coin":
+				data.invisibleObstacle = True
+				data.startTimeInvisble = time.time()
+			elif self.itemType == "Bubble":
+				data.gapIncrease = True
+				data.gapIncreaseStartTime = time.time()
+				data.gap = 250
+				for obstacle in data.obstacles:
+					if obstacle.passed == False:
+						obstacle.gap = data.gap
+			data.gameItems.remove(self)
 
 #################################################
 #################################################
@@ -239,12 +250,17 @@ def init(data):
 	coinFile = "/Users/Akash/Documents/CMU Summer/15-112/Final Project/Images/coin.gif"
 	data.coin = PhotoImage(file = coinFile, format="gif -index 4")
 
+	bubbleFile = "/Users/Akash/Documents/CMU Summer/15-112/Final Project/Images/bubble.gif"
+	data.bubble = PhotoImage(file = bubbleFile)
+
 	data.animal = Animal(data, 40, data.ground.height())
 
 	data.obstacles = []
 	data.obstaclesImages = []
 
 	data.gameItems = []
+	data.allGameItems = [data.coin, data.bubble]
+	data.allGameItemTypes = ["Coin", "Bubble"]
 
 	data.borders = []
 
@@ -260,15 +276,18 @@ def init(data):
 	data.arcadeMode = True
 
 	data.invisibleObstacle = False
-	data.timeInvisbleCounter = 0
-	data.timeInvisble = 3 * (1000 / data.timerDelay)
+	data.startTimeInvisble = time.time()
+	data.timeInvisble = 5
 
-	data.gap = 
+	data.gap = 150
+	data.gapIncrease = False
+	data.gapIncreaseStartTime = time.time()
+	data.gapIncreaseTime = 5
 
 	data.animalImageIndex = 0
 
-	#newObstacle(data)
-	data.obstacles.append(MovingObstacle(data, data.width, 0, random.randint(100, data.height - 200), -5))
+	newObstacle(data)
+	#data.obstacles.append(MovingObstacle(data, data.width, 0, random.randint(100, data.height - 200), -5))
 	newBorder(data, 0)
 	newBorder(data, data.width)
 
@@ -298,29 +317,21 @@ def timerFired(data):
 	
 	data.timer += 1
 
-	if data.invisibleObstacle:
-		data.timeInvisbleCounter += 1
+	if data.invisibleObstacle and time.time() - data.startTimeInvisble > data.timeInvisble:
+		data.invisibleObstacle = False
 
-		if data.timeInvisbleCounter > data.timeInvisble:
-			data.timeInvisbleCounter = 0
-			data.invisibleObstacle = False
+	if data.gapIncrease and time.time() - data.gapIncreaseStartTime > data.gapIncreaseTime:
+		data.gapIncrease = True
+		data.gap = 150
 
 	if data.obstacles[len(data.obstacles) - 1].top.x1 < data.width - data.obstacleDistance:
 		newObstacle(data)
 
 	for obstacle in data.obstacles:
-		gameState = obstacle.onTimerFired(data)
-		if gameState == "Off Screen":
-			index = data.obstacles.index(obstacle)
-			data.obstacles.remove(obstacle)
-			break
-		elif gameState == "Bird Hit":
-			data.gameOver = True	
+		obstacle.onTimerFired(data)
 
 	for gameItem in data.gameItems:
-		if gameItem.onTimerFired(data) == "Collected":
-			data.gameItems.remove(gameItem)
-			data.invisibleObstacle = True
+		gameItem.onTimerFired(data)
 
 	for border in data.borders:
 		border.move(data, data.itemMove)
@@ -356,7 +367,7 @@ def redrawAll(canvas, data):
 def newObstacle(data):
 	if data.gameOver: return
 	#data.obstacles.append(Obstacle(data, data.width, 0, random.randint(100, data.height - 200), data.gap))
-	data.obstacles.append(MovingObstacle(data, data.width, 0, random.randint(100, data.height - 200), -5))
+	data.obstacles.append(MovingObstacle(data, data.width, 0, random.randint(100, data.height - 200), data.gap, -5))
 	newGameItem(data, data.width + data.obstacleDistance/2)
 
 def newBorder(data, x):
@@ -365,7 +376,10 @@ def newBorder(data, x):
 
 def newGameItem(data, x):
 	if data.gameOver: return
-	data.gameItems.append(GameItem(x, random.randint(100, data.height - 100), data.coin.height()/4))
+	itemIndex = random.randint(0, len(data.allGameItems) - 1)
+	item = data.allGameItems[itemIndex]
+	itemType = data.allGameItemTypes[itemIndex]
+	data.gameItems.append(GameItem(x, random.randint(100, data.height - 100), item, itemType))
 
 #################################################
 
