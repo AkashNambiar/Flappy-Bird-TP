@@ -29,6 +29,11 @@ class Animal(object):
 
 		self.foundMove = [False, None, None]
 
+		self.jumpMoves = 0
+		self.t = 0
+		self.a = 0
+		self.f = False
+
 	def jump(self, data):
 		if data.gameOver: return
 		self.jumping = True
@@ -40,7 +45,7 @@ class Animal(object):
 			self.y += self.velocity[self.velocityIndex]
 			self.velocityIndex += 1
 			if self.velocityIndex >= len(self.velocity):
-				#self.jumping = False
+				self.jumping = False
 				self.velocityIndex = 0
 
 	def obstacleCollision(self, obstacle, data, x, y):
@@ -51,6 +56,8 @@ class Animal(object):
 		
 		collidedTop = abs(top.x1 - x) < size and top.y2 > y - size
 		collidedBottom = abs(bottom.x1 - x) < size and bottom.y1 < y + size
+		#print(collidedTop or collidedBottom)
+		#return False
 		return collidedTop or collidedBottom
 
 	def itemCollision(self, item):
@@ -61,7 +68,46 @@ class Animal(object):
 	#################################################
 
 	def smartJumpAction(self, data):
+		# if self.jumpMoves != 0:
+		# 	self.y += self.velocity[0]
+		# 	self.jumpMoves -= 1
+		# 	if self.jumpMoves == 0:
+		# 		self.smartJump = False
+		# 	#print(self.jumpMoves)
+		# 	self.speed = self.fallVelocity
+		# 	return
 		
+		if self.t != 0: 
+			self.t -= 1
+			if self.jumpMoves != 0:
+				self.y += self.velocity[0]
+				self.jumpMoves -= 1
+				#if self.jumpMoves == 0:
+					#self.smartJump = False
+				#print(self.jumpMoves)
+				self.speed = self.fallVelocity
+			self.f = True
+			return
+		elif self.t == -4 and self.f:
+			self.y += self.velocity[0]
+
+
+		for obstacle in data.obstacles:
+			if not obstacle.passed:
+		 		x, y = obstacle.getCenterX(), (obstacle.top.y2 + obstacle.bottom.y1)/2
+		 		# print(self.y , y)
+		 		#assert(1==0)
+		 		if self.y < y:
+		 			pass
+		 		else:
+		 			distanceToY = abs(self.y - y)
+		 			jumpHeight = abs(self.velocity[0]) + self.fallVelocity 
+		 			numberOfJumps = distanceToY // jumpHeight 
+		 			self.jumpMoves = numberOfJumps
+		 			self.t = self.jumpMoves
+		 			self.a = 0
+		 			# print(numberOfJumps)
+		 		return
 		# if self.foundMove[0]:
 		# 	self.executeJumpMove(data, self.foundMove[1], self.foundMove[2][self.foundMove[3]])
 		# 	self.foundMove = [True, self.foundMove[1], self.foundMove[2], self.foundMove[3] + 1]
@@ -160,7 +206,6 @@ class Animal(object):
 	def onTimerFired(self, data):
 		if data.animal.smartJump: 
 			self.smartJumpAction(data)
-			return
 			
 		self.jumpAction()
 		self.y += self.speed
@@ -220,7 +265,11 @@ class Obstacle(object):
 			index = data.obstacles.index(self)
 			data.obstacles.remove(self)
 		if data.animal.obstacleCollision(self, data, data.animal.x, data.animal.y):
+			#assert(1==0)
 			data.gameOver = True	
+
+	def __repr__(self):
+		return "%s" % self.passed
 
 #################################################
 #################################################
@@ -389,7 +438,7 @@ def init(data):
 	data.timer = 0
 	data.timerDelay = 30
 
-	data.obstacleDistance = 300
+	data.obstacleDistance = 275
 	data.itemMove = 5
 
 	data.score = 0
@@ -440,7 +489,7 @@ def keyPressed(event, data):
 	elif key == "r":
 		init(data)
 	elif key == "a":
-		data.animal.smartJump = not data.animal.smartJump
+		data.animal.smartJump = True
 
 #################################################
 
@@ -526,7 +575,7 @@ def newObstacle(data):
 	if data.gameOver: return
 	#data.obstacles.append(Obstacle(data, data.width, 0, random.randint(100, data.height - 200), data.gap))
 	data.obstacles.append(MovingObstacle(data, data.width, 0, random.randint(100, data.height - 200), data.gap, -5))
-	newGameItem(data, data.width + data.obstacleDistance/2)
+	#newGameItem(data, data.width + data.obstacleDistance/2)
 
 def newBorder(data, x):
 	if data.gameOver: return
