@@ -56,8 +56,6 @@ class Animal(object):
 		
 		collidedTop = abs(top.x1 - x) < size and top.y2 > y - size
 		collidedBottom = abs(bottom.x1 - x) < size and bottom.y1 < y + size
-		#print(collidedTop or collidedBottom)
-		#return False
 		return collidedTop or collidedBottom
 
 	def itemCollision(self, item):
@@ -68,35 +66,21 @@ class Animal(object):
 	#################################################
 
 	def smartJumpAction(self, data):
-		# if self.jumpMoves != 0:
-		# 	self.y += self.velocity[0]
-		# 	self.jumpMoves -= 1
-		# 	if self.jumpMoves == 0:
-		# 		self.smartJump = False
-		# 	#print(self.jumpMoves)
-		# 	self.speed = self.fallVelocity
-		# 	return
-		
+		if data.gameOver: return
 		if self.t != 0: 
 			self.t -= 1
 			if self.jumpMoves != 0:
 				self.y += self.velocity[0]
 				self.jumpMoves -= 1
-				#if self.jumpMoves == 0:
-					#self.smartJump = False
-				#print(self.jumpMoves)
 				self.speed = self.fallVelocity
 			self.f = True
 			return
-		elif self.t == -4 and self.f:
+		elif self.t == - 4 and self.f:
 			self.y += self.velocity[0]
-
 
 		for obstacle in data.obstacles:
 			if not obstacle.passed:
 		 		x, y = obstacle.getCenterX(), (obstacle.top.y2 + obstacle.bottom.y1)/2
-		 		# print(self.y , y)
-		 		#assert(1==0)
 		 		if self.y < y:
 		 			pass
 		 		else:
@@ -106,23 +90,9 @@ class Animal(object):
 		 			self.jumpMoves = numberOfJumps
 		 			self.t = self.jumpMoves
 		 			self.a = 0
-		 			# print(numberOfJumps)
 		 		return
-		# if self.foundMove[0]:
-		# 	self.executeJumpMove(data, self.foundMove[1], self.foundMove[2][self.foundMove[3]])
-		# 	self.foundMove = [True, self.foundMove[1], self.foundMove[2], self.foundMove[3] + 1]
-		# 	if self.foundMove[3] >= len(self.foundMove[2]):
-		# 		self.foundMove = [False, None, None, 0]
-		# 		#assert(1==0)
-		# 	return
-		
-		# for obstacle in data.obstacles:
-		# 	if not obstacle.passed:
-		# 		#self.y = obstacle.getCenterY()
-		# 		x = self.jumpMove(data, obstacle, self.x, self.y)
-		# 		print(x)
-		# 		#assert(1==0)
-		# 		break
+	
+	#BackTracking --> ineffecient
 
 	# def jumpMove(self, data, obstacle, startX, startY, moves = []):
 	# 	endingPosition = self.executeJumpMoves(data, obstacle, startX, startY, moves)
@@ -134,48 +104,6 @@ class Animal(object):
 	# 			return moves
 	# 		moves.remove(move)
 	# 	return None
-
-	# def executeJumpMove(self, data, obstacle, move):
-	# 	#print(move)
-	# 	if move == "Jump":
-	# 		print("Jump")
-	# 		self.speed = self.fallVelocity
-	# 		self.y += self.velocity[self.velocityIndex]
-
-	# 		self.velocityIndex += 1
-	# 		if self.velocityIndex >= len(self.velocity):
-	# 			self.velocityIndex = 0
-	# 			#assert(1==0)
-	# 	else:
-	# 		print("Wait")
-	# 		# self.velocityIndex = 0
-
-	# 		# self.y += self.speed
-	# 		# self.speed += self.fallVelocity
-
-	# 		# if self.y > data.height - self.size//2 - self.border: 
-	# 		# 	self.y = data.height - self.size//2 -self.border
-	# 		# 	self.speed = self.fallVelocity
-
-	# 		# if self.y < self.size//2 + self.border: 
-	# 		# 	self.y = self.size//2 + self.border
-	# 		# 	self.speed = self.fallVelocity
-
-	# def executeJumpMoves(self, data, obstacle, startX, startY, moves):
-	# 	speed = self.speed
-	# 	for move in moves:
-	# 		if move == "Jump":
-	# 			for velocity1 in self.velocity:
-	# 				startX += data.itemMove
-	# 				startY += velocity1
-	# 				speed = self.speed
-
-	# 				startY += speed
-	# 				speed += self.fallVelocity
-	# 		else:
-	# 			startY += speed
-	# 			speed += self.fallVelocity
-	# 	return startX, startY
 
 	# def possibleJumpMoves(self, data, obstacle, startX, startY, moves):
 	# 	for move in moves:
@@ -265,11 +193,7 @@ class Obstacle(object):
 			index = data.obstacles.index(self)
 			data.obstacles.remove(self)
 		if data.animal.obstacleCollision(self, data, data.animal.x, data.animal.y):
-			#assert(1==0)
-			data.gameOver = True	
-
-	def __repr__(self):
-		return "%s" % self.passed
+			data.gameOver = True
 
 #################################################
 #################################################
@@ -398,11 +322,6 @@ def init(data):
 	restartFile = "/Users/Akash/Documents/CMU Summer/15-112/Final Project/Images/restart.gif"
 	data.restart = PhotoImage(file = restartFile)
 
-	# coinFile = "/Users/Akash/Documents/CMU Summer/15-112/Final Project/Images/coin.gif"
-	# data.coin = PhotoImage(file = coinFile, format="gif -index 4")
-
-	# bubbleFile = "/Users/Akash/Documents/CMU Summer/15-112/Final Project/Images/bubble.gif"
-	# data.bubble = PhotoImage(file = bubbleFile)
 	invisbleFile = "/Users/Akash/Documents/CMU Summer/15-112/Final Project/Images/invisble.gif"
 	data.invisble = PhotoImage(file = invisbleFile)
 
@@ -423,6 +342,27 @@ def init(data):
 
 	helpFile = "/Users/Akash/Documents/CMU Summer/15-112/Final Project/Images/help.gif"
 	data.help = PhotoImage(file = helpFile)
+
+	level1File = "/Users/Akash/Documents/CMU Summer/15-112/Final Project/Images/level1.gif"
+	data.level1 = PhotoImage(file = level1File)
+
+	level2File = "/Users/Akash/Documents/CMU Summer/15-112/Final Project/Images/level2.gif"
+	data.level2 = PhotoImage(file = level2File)
+
+	arcadeOnFile = "/Users/Akash/Documents/CMU Summer/15-112/Final Project/Images/arcadeOn.gif"
+	data.arcadeOn = PhotoImage(file = arcadeOnFile)
+
+	arcadeOffFile = "/Users/Akash/Documents/CMU Summer/15-112/Final Project/Images/arcadeOff.gif"
+	data.arcadeOff = PhotoImage(file = arcadeOffFile)
+
+	helpMenuFile = "/Users/Akash/Documents/CMU Summer/15-112/Final Project/Images/helpMenu.gif"
+	data.helpMenuImage = PhotoImage(file = helpMenuFile)
+
+	backgroundHelpFile = "/Users/Akash/Documents/CMU Summer/15-112/Final Project/Images/backgroundHelp.gif"
+	data.backgroundHelp = PhotoImage(file = backgroundHelpFile)
+
+	crystalsFile = "/Users/Akash/Documents/CMU Summer/15-112/Final Project/Images/crystals.gif"
+	data.crystals = PhotoImage(file = crystalsFile)
 
 	data.animal = Animal(data, 48, data.ground.height())
 
@@ -445,6 +385,8 @@ def init(data):
 
 	data.gameOver = False
 	data.arcadeMode = True
+	data.arcade = data.arcadeOff
+	data.movingObstacles = False
 
 	data.invisibleObstacle = False
 	data.startTimeInvisble = time.time()
@@ -459,6 +401,7 @@ def init(data):
 
 	data.gameStart = False
 	data.oneTimeStart = True
+	data.levelSelect = False
 
 	data.helpMenu = False
 
@@ -470,10 +413,51 @@ def init(data):
 
 def mousePressed(event, data):
 	x, y = event.x, event.y
+
+	if data.helpMenu:
+		if x < data.width//2 - data.helpMenuImage.width()//2 or data.width//2 + data.helpMenuImage.width()//2 < x \
+			 or y < data.height//2 - data.helpMenuImage.height()//2 or data.height//2 + data.helpMenuImage.height()//2 < y:
+				data.helpMenu = False
+		return
+
+	if data.gameOver:
+		if 
+
+	if data.levelSelect:
+		if data.width//2 - data.level1.width()//2 < x < data.width//2 + data.level1.width()//2:
+			if data.height//4 - 25 - data.level1.height()//2 < y < data.height//4 - 25 +data.level1.height()//2:
+				if data.arcade == data.arcadeOff:
+					data.arcadeMode = False
+				else:
+					data.arcadeMode = True
+				data.movingObstacles = False
+				data.gameStart = True
+				return
+
+		if data.width//2 - data.level1.width()//2 < x < data.width//2 + data.level1.width()//2:
+			if data.height//2 - 25 - data.level1.height()//2 < y < data.height//2 - 25 +data.level1.height()//2:
+				if data.arcade == data.arcadeOff:
+					data.arcadeMode = False
+				else:
+					data.arcadeMode = True
+				data.movingObstacles = True
+				data.gameStart = True
+				return
+
+		if data.width//2 - data.level1.width()//2 < x < data.width//2 + data.level1.width()//2:
+			if 3*data.height//4 - 25 - data.level1.height()//2 < y < 3*data.height//4 - 25 +data.level1.height()//2:
+				if data.arcade == data.arcadeOff:
+					data.arcade = data.arcadeOn
+				else:
+					data.arcade = data.arcadeOff
+				return
+		data.levelSelect = False
+		return
+
 	if not data.gameStart or not data.helpMenu:
 		if data.width//2 - data.play.width()//2 < x < data.width//2 + data.play.width()//2:
 			if data.height//2 - data.play.height() < y < data.height//2:
-				data.gameStart = True
+				data.levelSelect = True
 				return
 		if data.width//2 - data.help.width()//2 < x < data.width//2 + data.help.width()//2:
 			if 2*data.height//3 - data.play.height()//2 < y < 2*data.height//3 + data.play.height()//2:
@@ -487,9 +471,14 @@ def keyPressed(event, data):
 	if key == "Up" or key == "space":
 		data.animal.jump(data)
 	elif key == "r":
+		movingObstacles = data.movingObstacles
+		arcadeMode = data.arcadeMode
 		init(data)
+		data.gameStart = True
+		data.arcadeMode = arcadeMode
+		data.movingObstacles = movingObstacles
 	elif key == "a":
-		data.animal.smartJump = True
+		data.animal.smartJump = not data.animal.smartJump
 
 #################################################
 
@@ -514,7 +503,7 @@ def timerFired(data):
 		data.invisibleObstacle = False
 
 	if data.gapIncrease and time.time() - data.gapIncreaseStartTime > data.gapIncreaseTime:
-		data.gapIncrease = True
+		data.gapIncrease = False
 		data.gap = 150
 
 	if data.obstacles[len(data.obstacles) - 1].top.x1 < data.width - data.obstacleDistance:
@@ -545,12 +534,18 @@ def redrawAll(canvas, data):
 	if not data.gameStart: 
 		canvas.create_image(0, data.height, anchor = SW, image = data.ground)
 		canvas.create_image(data.width//2, 2*data.height//3, anchor = CENTER, image = data.help)
-		canvas.create_image(data.width//2, data.height//4, anchor = CENTER, image = data.clouds)
+		
 		canvas.create_image(data.width//2, data.height//2, anchor = S, image = data.play)
 		data.loadingAnimal.draw(canvas, data)
 		data.loadingAnimal.x = (data.loadingAnimal.x + 5) % data.width
 		if data.helpMenu:
-			canvas.create_rectangle(50, 50, data.width - 50, data.height - data.ground.height() - 50, fill = "black")
+			canvas.create_image(data.width//2, data.height//2, anchor = CENTER, image = data.helpMenuImage)
+
+		if data.levelSelect:
+			canvas.create_image(data.width//2, data.height//2 - 25, anchor = CENTER, image = data.backgroundHelp)
+			canvas.create_image(data.width//2, data.height//4 - 25, anchor = CENTER, image = data.level1)
+			canvas.create_image(data.width//2, data.height//2 - 25, anchor = CENTER, image = data.level2)
+			canvas.create_image(data.width//2, 3*data.height//4 - 25, anchor = CENTER, image = data.arcade)
 		return
 
 	for obstacle in data.obstacles:
@@ -573,9 +568,18 @@ def redrawAll(canvas, data):
 
 def newObstacle(data):
 	if data.gameOver: return
-	#data.obstacles.append(Obstacle(data, data.width, 0, random.randint(100, data.height - 200), data.gap))
-	data.obstacles.append(MovingObstacle(data, data.width, 0, random.randint(100, data.height - 200), data.gap, -5))
-	#newGameItem(data, data.width + data.obstacleDistance/2)
+	obstacleY = random.randint(data.ground.height() + 50, data.height//2)
+	if data.movingObstacles:
+		if random.randint(1,3) != 1:
+			data.obstacles.append(Obstacle(data, data.width, 0, obstacleY, data.gap))
+		else:
+			data.obstacles.append(MovingObstacle(data, data.width, 0, obstacleY, data.gap, -5))
+	else:
+		data.obstacles.append(Obstacle(data, data.width, 0, obstacleY, data.gap))
+
+	if data.arcadeMode:
+		if random.randint(1,1) == 1:
+			newGameItem(data, data.width + data.obstacleDistance/2)
 
 def newBorder(data, x):
 	if data.gameOver: return
@@ -592,21 +596,28 @@ def newGameItem(data, x):
 
 def drawBackground(canvas, data):
 	canvas.create_image(0, 0, anchor = NW, image = data.background)
+	canvas.create_image(data.width//2, data.height//4, anchor = CENTER, image = data.clouds)
+	canvas.create_image(data.width//2, data.height - data.ground.height(), anchor = S, image = data.crystals)
 
 def drawRestart(canvas, data):
 	canvas.create_image(data.width//2, data.height//2 - 20, anchor = CENTER, image = data.restart)
 	canvas.create_image(data.width//2, data.height//2 + data.restart.height()/2, anchor = N, image = data.mat)
-	canvas.create_text(data.width//2, data.height//2 + data.restart.height()/2 + data.mat.height()/2, 
-		text = str(data.score), fill = "white")
+	canvas.create_text(data.width//2, data.height//2 + data.restart.height()/2 + data.mat.height()/2 - 5, 
+		text = str(data.score), fill = "Purple", font = "Komika 40 bold")
 
 def drawMat(canvas, data):
 	if data.gameOver: return
 	canvas.create_image(data.width, 0, anchor = NE, image = data.mat)
-	canvas.create_text(data.width - data.mat.width()//2, data.mat.height()//3, text = str(data.score), fill = "white")
+	canvas.create_text(data.width - data.mat.width()//2, data.mat.height()//4 + 5, text = str(data.score), fill = "white",
+		font = "Komika 28")
 	if data.invisibleObstacle:
 		x = abs(data.startTimeInvisble - time.time())/data.timeInvisble
 		canvas.create_rectangle(data.width - 3*data.mat.width()//4, data.mat.height()//2, 
-			data.width - (data.mat.width()//4) - x*data.mat.width()//2, 2*data.mat.height()//3, fill = "yellow")
+			data.width - (data.mat.width()//4) - x*data.mat.width()//2, 7*data.mat.height()//12, fill = "lightblue")
+	if data.gapIncrease:
+		x = abs(data.gapIncreaseStartTime - time.time())/data.gapIncreaseTime
+		canvas.create_rectangle(data.width - 3*data.mat.width()//4, 2*data.mat.height()//3, 
+			data.width - (data.mat.width()//4) - x*data.mat.width()//2, 3*data.mat.height()//4 , fill = "pink")
 
 #################################################
 #################################################
